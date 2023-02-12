@@ -1,0 +1,33 @@
+---
+title: "Task 1: Palmetto Binary Logistic Regression"
+author: "Nick McManus"
+date: "2023-02-12"
+output: 
+ html_document: 
+    toc: yes
+    toc_float: yes
+    theme: cerulean
+    code_folding: show
+    smooth_scroll: yes
+    collapsed: yes
+---
+
+```{r setup, include=TRUE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse) #always
+
+```
+
+## Introduction
+***
+
+The amphibian data visualized in this task comes from the Sierra Lakes Inventory Project (SLIP). This project ran from 1995-2002 and surveyed aquatic communities --- including amphibians, reptiles, fish, macroinvertebrates, and zooplankton --- in over 8,000 water bodies in the southern Sierra Nevada. In this task, we will explore the abundance of just one species: the mountain yellow-legged frog (*Rana muscosa*). First, we determine the number of *R. muscosa* observed in the Sierras by life stage and year. Next, we determine which lakes contained the greatest number of observations throughout the project. These data will are finally presented in a composite figure.
+
+**Source:** Knapp, R.A., C. Pavelka, E.E. Hegeman, and T.C. Smith. 2020. The Sierra Lakes Inventory Project: Non-Native fish and community composition of lakes and ponds in the Sierra Nevada, California ver 2. Environmental Data Initiative. <https://doi.org/10.6073/pasta/d835832d7fd00d9e4466e44eea87fab3>
+
+<br><br>
+
+## Data wrangling
+***
+
+First we'll read in the data:
