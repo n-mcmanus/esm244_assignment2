@@ -14,20 +14,231 @@ output:
 
 ```{r setup, include=TRUE, message = FALSE, warning = FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
-library(tidyverse) #always
-
+library(tidyverse)  #always
+library(GGally)     #plotting 
+library(AICcmodavg) #compare AIC values
+library(tidymodels) #k-fold cross validation
+library(kableExtra) #tables
 ```
 
 ## Introduction
 ***
 
-The amphibian data visualized in this task comes from the Sierra Lakes Inventory Project (SLIP). This project ran from 1995-2002 and surveyed aquatic communities --- including amphibians, reptiles, fish, macroinvertebrates, and zooplankton --- in over 8,000 water bodies in the southern Sierra Nevada. In this task, we will explore the abundance of just one species: the mountain yellow-legged frog (*Rana muscosa*). First, we determine the number of *R. muscosa* observed in the Sierras by life stage and year. Next, we determine which lakes contained the greatest number of observations throughout the project. These data will are finally presented in a composite figure.
+This analysis focuses on a dataset of south-central Florida palmetto species. This dataset includes (x, y, z) on the two dominant palmetto species at the Archbold Biological Station: *Serenoa repens* and *Sabel etonia*. Data was collected at five-year intervals between 1981-2017.
 
-**Source:** Knapp, R.A., C. Pavelka, E.E. Hegeman, and T.C. Smith. 2020. The Sierra Lakes Inventory Project: Non-Native fish and community composition of lakes and ponds in the Sierra Nevada, California ver 2. Environmental Data Initiative. <https://doi.org/10.6073/pasta/d835832d7fd00d9e4466e44eea87fab3>
+To understand how well measured variables -- such as plant height, canopy length and width, and number of new green leaves -- can classify palmetto species, we'll first visualize the relationship between species and predictor variables. Then, a binary logistic regression determines the probabilty of a given palmetto to be either species....
+
+
+
+
+**Source:** Abrahamson, W.G. 2019. Survival, growth and biomass estimates of two dominant palmetto species of south-central Florida from 1981 - 2017, ongoing at 5-year intervals ver 1. Environmental Data Initiative. https://doi.org/10.6073/pasta/f2f96ec76fbbd4b9db431c79a770c4d5
 
 <br><br>
 
-## Data wrangling
+## Visual exporation
 ***
 
 First we'll read in the data:
+```{r}
+palmetto <- read_csv("palmetto.csv") %>% 
+  # keep variables of interest
+  select(species, height:green_lvs) %>% 
+  # change number to species name
+  mutate(species = case_when(species == 1 ~ 'S. repens',
+                             species == 2 ~ 'S. etonia'),
+         species = factor(species)) %>% 
+  drop_na()
+
+palmetto %>% 
+  ggpairs(aes(color = species))
+```
+
+Then create visualizations.
+```{r}
+ggplot(data = palmetto, aes(x = height, y = length))+
+  geom_point(aes(color = species), show.legend = FALSE) +
+  labs(x = 'Height (cm)',
+       y = 'Canopy Length (cm)') +
+ # facet_wrap(~species) +
+  scale_color_manual(values = c('seagreen4', 'seagreen2'))+
+  theme()
+
+## maybe make a top figure of them together, then bottom half of them split up and put it together in a cowplot? 
+```
+**Figure 1.** Height (cm) and canopy length (cm) of Palmetto species measured at the Archbold Biological Station from 1981-2017. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. 
+
+
+
+
+```{r}
+# histogram of green leaves by species
+ggplot(data = palmetto, aes(x = green_lvs, fill = species)) +
+  geom_histogram() +
+  labs(x = 'Number of Green Leaves',
+       y = 'Count') +
+  scale_fill_manual(values = c('seagreen4', 'seagreen2'))
+```
+
+
+
+
+
+## Logistic regression
+
+Create the models
+```{r}
+# first formula considers all variables
+f1 <- species ~ height + width + length + green_lvs
+blr1 <- glm(formula = f1, data = palmetto, family = "binomial")
+
+# second formula doesn't look at canopy length
+f2 <- species ~ height + width + green_lvs
+blr2 <- glm(f2, palmetto, family = "binomial")
+
+# Get a tidy version w/ broom, then output nice tables
+blr1_tidy <- broom::tidy(blr1)
+blr2_tidy <- broom::tidy(blr2)
+
+blr1_tidy %>% 
+  kable(caption = "**Table 1.** Summary statistics for BLR model 1",
+        col.names = c("Variable", "Estimate", "Standard error", "Statistic", "p-value")) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left")
+
+blr2_tidy %>% 
+  kable(caption = "**Table 2.** Summary statistics for BLR model s",
+        col.names = c("Variable", "Estimate", "Standard error", "Statistic", "p-value")) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left")
+
+```
+
+
+AICc and BIC values
+```{r}
+## make nice AICc table
+aic_table <- aictab(list(blr1, blr2)) %>% 
+  kable(caption = "**Table 3.** AICc values for Models 1 and 2.",
+        col.names = c("Model", "Parameters", "AICc", 
+                      "Delta AICc", "mdlLik","aiccwt", 
+                      "Log Likelihood", "cum.wt")) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left") %>% 
+  remove_column(c(5,6,8)) #remove unnecessary columns
+aic_table
+
+## make nice BIC table
+bic_table <- bictab(list(blr1, blr2)) %>% 
+  kable(caption = "**Table 4.** BIC values for Models 1 and 2.",
+        col.names = c("Model", "Parameters", "AICc", 
+                      "Delta AICc", "mdlLik","aiccwt", 
+                      "Log Likelihood", "cum.wt")) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left") %>% 
+  remove_column(c(5,6,8)) #remove unnecessary columns
+bic_table
+```
+
+
+10-fold cross validation
+```{r}
+# let's try this with tidymodels
+
+# set seed for reproducibility 
+set.seed(123)
+
+# set number of folds to 10 and repeat it 5 times
+tidyfold <- vfold_cv(palmetto, v = 10, repeats = 5)
+
+# 
+```
+
+
+old purrr map code that didn't work:
+```{r}
+# function to calculate accuracy, given a "truth" vector and "prediction" vector
+pred_acc <- function(x, y) {
+  accurate <- ifelse(x == y, 1, 0)
+  
+  return(mean(accurate, na.rm = TRUE))
+}
+
+# function to calculate accuracy of BLR of one fold (training and testing)
+calc_fold <- function(i, fold_df, f) {
+  kfold_test <- fold_df %>%
+    filter(fold == i)
+  kfold_train <- fold_df %>%
+    filter(fold != i)
+  
+  kfold_blr <- glm(f, data = kfold_train, family = 'binomial')
+  kfold_pred <- kfold_test %>%
+    mutate(blr = predict(kfold_blr, kfold_test, type = 'response')) %>%
+    mutate(pred = ifelse(blr > 0.50, 'S. repens', 'S. etonia'))
+  
+  kfold_accuracy <- kfold_pred %>%
+    summarize(blr_acc = pred_acc(species, pred)) # using my other function
+  
+  return(kfold_accuracy)
+}
+
+
+set.seed(24)
+
+n_folds <- 10
+fold_vec <- rep(1:n_folds, length.out = nrow(palmetto))
+
+palmetto_kfold <- palmetto %>% 
+  mutate(fold = sample(fold_vec, size = n(), replace = FALSE))
+
+
+## run with purrr
+
+results1 <- purrr::map(.x = 1:n_folds, # sequence of fold numbers
+                       .f = calc_fold, # function
+                       fold_df = palmetto_kfold, # additional argument to calc_fold()
+                       f = f1) %>%              # additional argument to calc_fold()
+  bind_rows() %>%
+  mutate(mdl = 'f1')
+
+results2 <- purrr::map(.x = 1:n_folds, .f = calc_fold, 
+                               fold_df = palmetto_kfold,
+                               f = f2) %>%
+  bind_rows() %>%
+  mutate(mdl = 'f2')
+
+results_purrr_df <- bind_rows(results1, results2) %>%
+  group_by(mdl) %>%
+  summarize(mean_acc = mean(blr_acc))
+
+results_purrr_df
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
