@@ -49,8 +49,7 @@ palmetto <- read_csv("palmetto.csv") %>%
          species = factor(species)) %>% 
   drop_na()
 
-palmetto %>% 
-  ggpairs(aes(color = species))
+#ggpairs(data = palmetto, aes(color = species))
 ```
 
 Then create visualizations.
@@ -85,7 +84,7 @@ ggplot(data = palmetto, aes(x = green_lvs, fill = species)) +
 
 ## Logistic regression
 
-Create the models
+Create the models using tidy models
 ```{r}
 # first formula considers all variables
 f1 <- species ~ height + width + length + green_lvs
@@ -112,7 +111,7 @@ blr2_tidy %>%
   kable_styling(full_width = FALSE,
                 bootstrap_options = "hover",
                 position = "left")
-
+blr1_tidy
 ```
 
 
@@ -146,20 +145,139 @@ bic_table
 
 10-fold cross validation
 ```{r}
-# let's try this with tidymodels
-
 # set seed for reproducibility 
 set.seed(123)
 
 # set number of folds to 10 and repeat it 5 times
-tidyfold <- vfold_cv(palmetto, v = 10, repeats = 5)
+n_folds <- vfold_cv(palmetto, v = 10, repeats = 5)
 
-# 
+# create BLR model
+blr_model <- logistic_reg() %>% 
+  set_engine('glm')
+
+
+
+# set up workflow bundling logistic model with formula
+## Run for formula 1 ----------------------
+blr_tidy_wf1 <- workflow() %>%
+  add_model(blr_model) %>%
+  add_formula(f1)
+
+blr_tidy_cv_f1 <- blr_tidy_wf1 %>%
+  fit_resamples(n_folds)
+
+## output useful metrics
+cv_metrics_f1 <- collect_metrics(blr_tidy_cv_f1)
+
+
+## Run for forumula 2 ----------------------
+blr_tidy_wf2 <- workflow() %>%
+  add_model(blr_model) %>%
+  add_formula(f2)
+
+blr_tidy_cv_f2 <- blr_tidy_wf2 %>%
+  fit_resamples(n_folds)
+
+## output useful metrics
+cv_metrics_f2 <- collect_metrics(blr_tidy_cv_f2) 
+ 
+
+# create tables for cv metrics ------------------
+## model 1
+cv_metrics_f1 %>% 
+  kable(caption = '**Table X.** Cross validation metrics for Model 1',
+        col.names = c('Metric', 'Estimator', 'Mean', 'n', 'Standard error', 'Configuration')) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left")
+## model 2
+cv_metrics_f2 %>% 
+  kable(caption = '**Table X.** Cross validation metrics for Model 1',
+        col.names = c('Metric', 'Estimator', 'Mean', 'n', 'Standard error', 'Configuration')) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left")
+
+```
+
+Accuracy of Model 1 is `r round(cv_metrics_f1$mean[1],3)`.
+
+
+
+Now train our selected Model 1 with the entire dataset and return coefficients. 
+```{r}
+# use the entire dataset to train model
+blr1_tidyfit <- blr_model %>% 
+  fit(f1, data = palmetto)
+
+# output coefficients in nice table
+coeffs_blr1_tidy <- tidy(blr1_tidyfit)
+coeffs_blr1_tidy %>% 
+  kable(caption = "**Table X.** Summary statistics for BLR model 1",
+        col.names = c("Variable", "Estimate", "Standard error", "Statistic", "p-value")) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left")
 ```
 
 
-old purrr map code that didn't work:
+
 ```{r}
+# convert log odds to probabilities with type.predict 
+blr1_fitted <- blr1 %>%
+  broom::augment(type.predict = 'response')
+
+# function to calculate percent accuracy
+pred_acc <- function(x, y) {
+  accurate <- ifelse(x == y, 1, 0)
+  return(mean(accurate, na.rm = TRUE))
+}
+
+# check the accuracy of the model by species
+blr1_accuracy <- blr1_fitted %>% 
+  #predict species based on 50% threshold
+  mutate(species_pred = ifelse(.fitted > 0.5, 'S. repens', 'S. etonia')) %>% 
+  #return 1 if prediction was correct, 0 if not
+  mutate(correct_pred = ifelse(species_pred == species, 'yes', 'no')) %>% 
+  #summary stats for both species, how many correct preds (and percentage)
+  group_by(species) %>% 
+  summarize(n_correct = sum(correct_pred == 'yes'),
+            n_incorrect = sum(correct_pred == 'no'),
+            pct_correct = pred_acc(species, species_pred))
+  
+# output nice table
+blr1_accuracy %>% 
+  kable(caption = "**Table X.** Accuracy...",
+        col.names = c("Species", "Correct", "Incorrect", "Percent correct")) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left")
+  
+```
+
+
+
+
+
+Not sure if I still need this info...
+```{r}
+
+blr_f1_pred <- palmetto %>%
+  mutate(predict(blr_tidyfit_f1, .),
+         predict(blr_tidyfit_f1, ., type = 'prob'))
+
+blr_f1_pred %>%
+  roc_curve(truth = species, `.pred_S. etonia`) %>%
+  autoplot()
+
+blr_f1_pred %>%
+  roc_auc(truth = species, `.pred_S. etonia`)
+```
+
+
+
+old purrr map code that didn't work:
+```{r, eval = FALSE}
 # function to calculate accuracy, given a "truth" vector and "prediction" vector
 pred_acc <- function(x, y) {
   accurate <- ifelse(x == y, 1, 0)
