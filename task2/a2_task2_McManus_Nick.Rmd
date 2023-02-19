@@ -7,7 +7,9 @@ output: html_document
 
 ```{r setup, include=TRUE, message=F, warning=F}
 knitr::opts_chunk$set(echo = TRUE, message=F, warning=F)
-library(tidyverse)     #always
+library(tidyverse)  #always
+library(broom)      #tidy tables
+library(kableExtra) #pretty tables
 library(purrr)   #?
 ```
 
@@ -64,7 +66,6 @@ b <- my_guess_model$coefficients[2]
 ***
 
 Now that we have initial guesses for parameters a and b, we can run our NLS using the dataset and model. With the results, we can display how well the model fits the data.
-
 ```{r}
 # run NLS
 lizards_nls <- nls(weight ~ fxn(a, b, sv_length),
@@ -72,7 +73,17 @@ lizards_nls <- nls(weight ~ fxn(a, b, sv_length),
                    start = list(a = a, b = b),
                    trace=TRUE)
 
+# return results in tidy table
+lizards_nls_tidy <- tidy(lizards_nls)
+lizards_nls_tidy %>% 
+  kable(caption = "**Table 1.** NLS results.",
+        col.names = c("Parameter", "Coefficient", "Standard error", "Statistic", "p-value")) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left")
+```
 
+```{r}
 # predict weight based on model
 lizards_pred <- lizards %>%
   mutate(predict = predict(lizards_nls, newdata=.))
@@ -113,12 +124,12 @@ ggplot(data = lizards_pred) +
 
 Now an NLS model will be fitted to a subset of lizard observations only of male *C. tigrisatus*. 
 ```{r}
-### STEP1: create data subset ----------------------------
+### STEP 1: create data subset ----------------------------
 lizards_cnti <- lizards %>% 
   filter(spp == 'CNTI',
          sex == 'M')
 
-### STEP2: Initial guess ---------------------------------
+### STEP 2: Initial guess ---------------------------------
 # OLS regression on log-transformed model
 my_guess_model_cnti <- lm(log(lizards_cnti$weight) ~ log(lizards_cnti$sv_length), 
                           data = lizards_cnti)
@@ -130,20 +141,64 @@ coefficients(my_guess_model_cnti)
 a_cnti <- exp((my_guess_model_cnti$coefficients[1]))
 b_cnti <- my_guess_model_cnti$coefficients[2]
 
-### STEP3: Run NLS --------------------------------------
+### STEP 3: Run NLS --------------------------------------
 # run NLS
 lizards_cnti_nls <- nls(weight ~ fxn(a, b, sv_length),
                         data = lizards_cnti,
                         start = list(a = a_cnti, b = b_cnti),
                         trace=TRUE)
 
-
-# predict weight based on model
-lizards_cnti_pred <- lizards_cnti %>%
-  mutate(predict = predict(lizards_cnti_nls, newdata=.))
+# return results in tidy table
+lizards_cnti_nls_tidy <- tidy(lizards_cnti_nls)
+lizards_cnti_nls_tidy %>% 
+  kable(caption = "**Table 2.** NLS results for male *C. tigrisatus*.",
+        col.names = c("Parameter", "Coefficient", 
+                      "Standard error", "Statistic", "p-value")) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left")
 ```
 
 
+```{r}
+# predict weight based on model
+lizards_cnti_pred <- lizards_cnti %>%
+  mutate(predict = predict(lizards_cnti_nls, newdata=.))
 
+# RMSE for predictions
+lizards_rmse <- data.frame(rmse_all = rmse(lizards_pred$weight, 
+                                           lizards_pred$predict),
+                           rmse_cnti = rmse(lizards_cnti_pred$weight, 
+                                            lizards_cnti_pred$predict))
+
+
+
+# plot how well prediction matches for CNTI and all lizards
+ggplot() +
+  #points for actual obs
+  geom_point(data = lizards_cnti_pred,
+             aes(x = sv_length, y = weight),
+             size = 2,
+             color = 'dodgerblue3',
+             alpha = 0.8) +
+  #line for CNTI predictions
+  geom_line(data = lizards_cnti_pred,
+            aes(x = sv_length , y = predict), 
+            color='black', 
+            size = 1) +
+  #line for general predicitons
+  geom_line(data = lizards_pred,
+            aes(x = sv_length , y = predict), 
+            color='red', 
+            size = 1) +
+  labs(x = 'Snout to vent length (mm)',
+       y = 'Weight (g)') +
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(size = 9, face = 'bold'),
+    axis.title.y = element_text(size = 9, face = 'bold'))
+```
+
+**Fig 2.** Caption here. 
 
 
