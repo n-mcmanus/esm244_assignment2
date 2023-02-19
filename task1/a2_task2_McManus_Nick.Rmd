@@ -15,6 +15,7 @@ output:
 ```{r setup, include=TRUE, message = FALSE, warning = FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 library(tidyverse)  #always
+library(broom)      #tidy tables
 library(GGally)     #plotting 
 library(AICcmodavg) #compare AIC values
 library(tidymodels) #k-fold cross validation
@@ -22,7 +23,7 @@ library(kableExtra) #tables
 library(cowplot)    #figures
 ```
 
-## Introduction
+# Introduction
 ***
 
 In this task, we create and compare two different binary logistic regression models for predicting palmetto species in south-central Florida. These models are created and tested using a long-term dataset of the two dominant palmetto species at the Archbold Biological Station: *Serenoa repens* and *Sabel etonia*. These data were collected at five-year intervals between 1981-2017.
@@ -35,7 +36,7 @@ To understand how well measured variables -- such as plant height, canopy length
 
 <br><br>
 
-## Visual exporation
+# Visual exporation
 ***
 
 First we'll read in the data:
@@ -122,7 +123,7 @@ ggplot(data = palmetto, aes(x = green_lvs)) +
                  binwidth = 1, 
                  boundary = -0.5, #adjust axis for better labeling
                  color = 'black', 
-                 alpha = 0.8) +
+                 alpha = 0.85) +
   #boxes for s.repens
   geom_histogram(data = subset(palmetto, species == 'S. repens'), 
                  aes(fill = species),
@@ -151,53 +152,62 @@ ggplot(data = palmetto, aes(x = green_lvs)) +
     legend.text = element_text(face = 'italic'),
     legend.key.size = unit(1, 'line'))
 
+#quantify the difference
 leaf_stats <- palmetto %>% 
   group_by(species) %>% 
   summarize(mean_lvs = mean(green_lvs),
             sd_lvs = sd(green_lvs))
 ```
-**Figure 2.** The number of green leaves on a palmetto for two species measured at the Archbold Biological Station. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. On average, *S. etonia* have `r round(leaf_stats$mean_lvs[1],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[1],1)` green leaves while *S. repens* have `r round(leaf_stats$mean_lvs[2],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[2],1)` green leaves (mean <font size="1">$\pm$</font> 1 standard deviation). The histograms' difference in spread and location reflect *S. repens* greater variability and average number of green leaves per plant.  
+**Figure 2.** The number of green leaves on a palmetto for two species measured at the Archbold Biological Station. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. On average, *S. etonia* have `r round(leaf_stats$mean_lvs[1],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[1],1)` green leaves while *S. repens* have `r round(leaf_stats$mean_lvs[2],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[2],1)` green leaves (mean <font size="1">$\pm$</font> 1 standard deviation). The histograms' difference in spread and central location reflect *S. repens* greater variability and average number of green leaves per plant.  
+
+Based on Figures 1 and 2, the number of green leaves noticeably differs between species, while height and canopy length narrowly differ; as such, height and canopy length may not serve as useful predictor variables in determining palmetto species. Figure 1 does show that canopy length is slightly greater for *S. etonia* plants with the same height as *S. repens*; however, to determine how much length helps classify species, we'll create and compare two models and perform a binary logistic regression. 
 
 
+# Binary Logistic Regression
+***
 
+<br>
 
-## Logistic regression
+## Compare Models
 
-Create the models using tidy models
+Our first model will classify palmetto species by plant height, canopy length and width, and the number of green leaves. Our second model will eschew canopy length, and we'll evaluate if the increased simplicity results in a better model. This begins with evaluating the log odds of plant type based on the predictor variables in each model. 
 ```{r}
 # first formula considers all variables
 f1 <- species ~ height + width + length + green_lvs
 blr1 <- glm(formula = f1, data = palmetto, family = "binomial")
 
-# second formula doesn't look at canopy length
+# second formula excludes canopy length
 f2 <- species ~ height + width + green_lvs
 blr2 <- glm(f2, palmetto, family = "binomial")
 
-# Get a tidy version w/ broom, then output nice tables
-blr1_tidy <- broom::tidy(blr1)
-blr2_tidy <- broom::tidy(blr2)
+# Get a tidy version w/ broom
+blr1_tidy <- tidy(blr1)
+blr2_tidy <- tidy(blr2)
 
+# return tables with log odds
 blr1_tidy %>% 
   kable(caption = "**Table 1.** Summary statistics for BLR model 1",
-        col.names = c("Variable", "Estimate", "Standard error", "Statistic", "p-value")) %>% 
+        col.names = c("Variable", "Coefficient", "Standard error", "Statistic", "p-value")) %>% 
+  kable_styling(full_width = FALSE,
+                bootstrap_options = "hover",
+                position = "left")
+blr2_tidy %>% 
+  kable(caption = "**Table 2.** Summary statistics for BLR model s",
+        col.names = c("Variable", "Coefficient", "Standard error", "Statistic", "p-value")) %>% 
   kable_styling(full_width = FALSE,
                 bootstrap_options = "hover",
                 position = "left")
 
-blr2_tidy %>% 
-  kable(caption = "**Table 2.** Summary statistics for BLR model s",
-        col.names = c("Variable", "Estimate", "Standard error", "Statistic", "p-value")) %>% 
-  kable_styling(full_width = FALSE,
-                bootstrap_options = "hover",
-                position = "left")
-blr1_tidy
 ```
 
 
-AICc and BIC values
+The coefficients for each predictor variable in log-linear Models 1 and 2 are displayed in Tables 1 and 2, respectively. In both models, the number of green leaves has the largest coefficient. In Model 1, for example, a coefficient of `r round(blr1_tidy$estimate[5],4)` indicates that, on average, the log odds of a palmetto being *S. repens* increases by `r round(blr1_tidy$estimate[5],4)` for each additional green leaf present. The canopy length has the second highest coefficient value, `r round(blr1_tidy$estimate[4],4)`, in Model 1; this indicates that removing canopy length from Model 2 may result in a less accurate predictor of palmetto species. To help determine if this is true, we'll compare the corrected Akaike information criterion (AICc) and Bayesian information criterion (BIC) values, as well as perform a cross validation, for both models.  
+
 ```{r}
+### AICc ------------------------------------------------------------
+aic <- aictab(list(blr1, blr2)) 
 ## make nice AICc table
-aic_table <- aictab(list(blr1, blr2)) %>% 
+aic_table <- aic %>% 
   kable(caption = "**Table 3.** AICc values for Models 1 and 2.",
         col.names = c("Model", "Parameters", "AICc", 
                       "Delta AICc", "mdlLik","aiccwt", 
@@ -206,10 +216,11 @@ aic_table <- aictab(list(blr1, blr2)) %>%
                 bootstrap_options = "hover",
                 position = "left") %>% 
   remove_column(c(5,6,8)) #remove unnecessary columns
-aic_table
 
+### BIC  ------------------------------------------------------------
+bic <- bictab(list(blr1, blr2))
 ## make nice BIC table
-bic_table <- bictab(list(blr1, blr2)) %>% 
+bic_table <- bic %>% 
   kable(caption = "**Table 4.** BIC values for Models 1 and 2.",
         col.names = c("Model", "Parameters", "AICc", 
                       "Delta AICc", "mdlLik","aiccwt", 
@@ -218,26 +229,34 @@ bic_table <- bictab(list(blr1, blr2)) %>%
                 bootstrap_options = "hover",
                 position = "left") %>% 
   remove_column(c(5,6,8)) #remove unnecessary columns
+
+
+## call tables
+aic_table
 bic_table
 ```
 
+`r aic$AICc[1]`
 
-10-fold cross validation
+As shown in Table 3, Model 1 has an AICc value of `r round(aic$AICc[1],2)`, while Model 2 has an AICc of `r round(aic$AICc[2],2)`. This difference of `r round(aic$Delta_AICc[2],2)` indicates that Model 1 predicts palmetto species significantly better than Model 2. The BIC values for the two models differ by `r round(bic$Delta_BIC[2],2)`, further supporting that Model 1 is the better choice.  
+
+Using the {tidymodels} package, we'll run a repeated cross validation (10-fold repeated 10 times) for both models: 
 ```{r}
-# set seed for reproducibility 
+### set the stage ------------------------------------------------------
+## set seed for reproducibility 
 set.seed(123)
 
-# set number of folds to 10 and repeat it 5 times
-n_folds <- vfold_cv(palmetto, v = 10, repeats = 5)
+## set number of folds to 10 and repeat it 5 times
+n_folds <- vfold_cv(palmetto, v = 10, repeats = 10)
 
-# create BLR model
+## create general BLR model
 blr_model <- logistic_reg() %>% 
   set_engine('glm')
 
 
 
-# set up workflow bundling logistic model with formula
-## Run for formula 1 ----------------------
+### set up workflow bundling logistic model with formula ---------------
+## Run for formula 1
 blr_tidy_wf1 <- workflow() %>%
   add_model(blr_model) %>%
   add_formula(f1)
@@ -245,11 +264,11 @@ blr_tidy_wf1 <- workflow() %>%
 blr_tidy_cv_f1 <- blr_tidy_wf1 %>%
   fit_resamples(n_folds)
 
-## output useful metrics
+# output useful metrics
 cv_metrics_f1 <- collect_metrics(blr_tidy_cv_f1)
 
 
-## Run for forumula 2 ----------------------
+## Run for formula 2
 blr_tidy_wf2 <- workflow() %>%
   add_model(blr_model) %>%
   add_formula(f2)
@@ -257,33 +276,36 @@ blr_tidy_wf2 <- workflow() %>%
 blr_tidy_cv_f2 <- blr_tidy_wf2 %>%
   fit_resamples(n_folds)
 
-## output useful metrics
+# output useful metrics
 cv_metrics_f2 <- collect_metrics(blr_tidy_cv_f2) 
  
 
-# create tables for cv metrics ------------------
+### create tables for cv metrics ---------------------------------------
 ## model 1
 cv_metrics_f1 %>% 
-  kable(caption = '**Table X.** Cross validation metrics for Model 1',
-        col.names = c('Metric', 'Estimator', 'Mean', 'n', 'Standard error', 'Configuration')) %>% 
+  kable(caption = '**Table 5.** Cross validation metrics for Model 1',
+        col.names = c('Metric', 'Estimator', 'Mean',
+                      'n', 'Standard error', 'Configuration')) %>% 
   kable_styling(full_width = FALSE,
                 bootstrap_options = "hover",
                 position = "left")
 ## model 2
 cv_metrics_f2 %>% 
-  kable(caption = '**Table X.** Cross validation metrics for Model 1',
-        col.names = c('Metric', 'Estimator', 'Mean', 'n', 'Standard error', 'Configuration')) %>% 
+  kable(caption = '**Table 6.** Cross validation metrics for Model 2',
+        col.names = c('Metric', 'Estimator', 'Mean',
+                      'n', 'Standard error', 'Configuration')) %>% 
   kable_styling(full_width = FALSE,
                 bootstrap_options = "hover",
                 position = "left")
 
 ```
 
-Accuracy of Model 1 is `r round(cv_metrics_f1$mean[1],3)`.
+As displayed in Tables 5 and 6, the mean accuracy of Model 1 is `r round(cv_metrics_f1$mean[1],4)`, while the mean accuracy for Model 2 is `r round(cv_metrics_f2$mean[1],4)`. Based on these cross validation results, as well as the AICc and BIC values, Model 1 performs better at species classification. 
 
 
+# Model Correctness
 
-Now train our selected Model 1 with the entire dataset and return coefficients. 
+Now that we've selected Model 1, we'll train it with the entire palmetto dataset and return it's coefficients.
 ```{r}
 # use the entire dataset to train model
 blr1_tidyfit <- blr_model %>% 
@@ -292,14 +314,15 @@ blr1_tidyfit <- blr_model %>%
 # output coefficients in nice table
 coeffs_blr1_tidy <- tidy(blr1_tidyfit)
 coeffs_blr1_tidy %>% 
-  kable(caption = "**Table X.** Summary statistics for BLR model 1",
-        col.names = c("Variable", "Estimate", "Standard error", "Statistic", "p-value")) %>% 
+  kable(caption = "**Table 7.** Summary statistics for BLR model 1",
+        col.names = c("Variable", "Coefficient", "Standard error", "Statistic", "p-value")) %>% 
   kable_styling(full_width = FALSE,
                 bootstrap_options = "hover",
                 position = "left")
 ```
 
 
+Because the log-odds are difficult to interpret, we'll convert them to the probabilities and then evaluate how successfully the model actually classifies a given plant as the correct species. This will be done using a 50% cutoff.
 
 ```{r}
 # convert log odds to probabilities with type.predict 
@@ -309,7 +332,7 @@ blr1_fitted <- blr1 %>%
 # function to calculate percent accuracy
 pred_acc <- function(x, y) {
   accurate <- ifelse(x == y, 1, 0)
-  return(mean(accurate, na.rm = TRUE))
+  return(mean(accurate, na.rm = TRUE)*100)
 }
 
 # check the accuracy of the model by species
@@ -326,116 +349,16 @@ blr1_accuracy <- blr1_fitted %>%
   
 # output nice table
 blr1_accuracy %>% 
-  kable(caption = "**Table X.** Accuracy...",
-        col.names = c("Species", "Correct", "Incorrect", "Percent correct")) %>% 
+  kable(caption = "**Table 8.** Classification accuracy for Model 1.",
+        col.names = c("Species", 
+                      "Correctly classified (n)", 
+                      "Incorrectly classified (n)", 
+                      "Percent correctly classified (%)")) %>% 
   kable_styling(full_width = FALSE,
                 bootstrap_options = "hover",
                 position = "left")
   
 ```
 
-
-
-
-
-Not sure if I still need this info...
-```{r}
-
-blr_f1_pred <- palmetto %>%
-  mutate(predict(blr_tidyfit_f1, .),
-         predict(blr_tidyfit_f1, ., type = 'prob'))
-
-blr_f1_pred %>%
-  roc_curve(truth = species, `.pred_S. etonia`) %>%
-  autoplot()
-
-blr_f1_pred %>%
-  roc_auc(truth = species, `.pred_S. etonia`)
-```
-
-
-
-old purrr map code that didn't work:
-```{r, eval = FALSE}
-# function to calculate accuracy, given a "truth" vector and "prediction" vector
-pred_acc <- function(x, y) {
-  accurate <- ifelse(x == y, 1, 0)
-  
-  return(mean(accurate, na.rm = TRUE))
-}
-
-# function to calculate accuracy of BLR of one fold (training and testing)
-calc_fold <- function(i, fold_df, f) {
-  kfold_test <- fold_df %>%
-    filter(fold == i)
-  kfold_train <- fold_df %>%
-    filter(fold != i)
-  
-  kfold_blr <- glm(f, data = kfold_train, family = 'binomial')
-  kfold_pred <- kfold_test %>%
-    mutate(blr = predict(kfold_blr, kfold_test, type = 'response')) %>%
-    mutate(pred = ifelse(blr > 0.50, 'S. repens', 'S. etonia'))
-  
-  kfold_accuracy <- kfold_pred %>%
-    summarize(blr_acc = pred_acc(species, pred)) # using my other function
-  
-  return(kfold_accuracy)
-}
-
-
-set.seed(24)
-
-n_folds <- 10
-fold_vec <- rep(1:n_folds, length.out = nrow(palmetto))
-
-palmetto_kfold <- palmetto %>% 
-  mutate(fold = sample(fold_vec, size = n(), replace = FALSE))
-
-
-## run with purrr
-
-results1 <- purrr::map(.x = 1:n_folds, # sequence of fold numbers
-                       .f = calc_fold, # function
-                       fold_df = palmetto_kfold, # additional argument to calc_fold()
-                       f = f1) %>%              # additional argument to calc_fold()
-  bind_rows() %>%
-  mutate(mdl = 'f1')
-
-results2 <- purrr::map(.x = 1:n_folds, .f = calc_fold, 
-                               fold_df = palmetto_kfold,
-                               f = f2) %>%
-  bind_rows() %>%
-  mutate(mdl = 'f2')
-
-results_purrr_df <- bind_rows(results1, results2) %>%
-  group_by(mdl) %>%
-  summarize(mean_acc = mean(blr_acc))
-
-results_purrr_df
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+By using plant height, canopy length and width, and number of green leaves as predictor variables, Model 1 served as a better predictor of palmetto species than Model 1. This decision was supported by the AICc values, BIC values, and results from a cross validation for both models. Table 8 illustrates that Model 1 correctly classifies palmettos as either *S. repens* or *S. etonia* `r round((blr1_accuracy[1,4] + blr1_accuracy[2,4])/2, 2)`% of the time, on average. 
 
