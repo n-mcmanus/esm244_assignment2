@@ -8,4 +8,68 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)     #always
+library(purrr)
 ```
+
+# Introduction
+***
+
+In this task, we use non-linear least squares (NLS) to estimate parameters of snout length to weight model for lizard populations in New Mexico. Lizard data was collected using pitfall traps at the Jornada Basin long-term ecological research site between 1989-2006. 
+
+**Source:** Lightfoot, D. and W.G. Whitford. 2020. Lizard pitfall trap data from 11 NPP study locations at the Jornada Basin LTER site, 1989-2006 ver 37. Environmental Data Initiative. https://doi.org/10.6073/pasta/4a6e258fb49c31e222ecbbcfd128967f
+
+
+```{r}
+lizards <- read_csv("lizards.csv") %>% 
+  #remove pesky captilized letters
+  janitor::clean_names()
+```
+
+
+# 1. Select model
+***
+
+The first step in NLS is selecting a model that best fits the data. After searching through the literature (i.e. this task assignment), we've decided to fit snouth length to lizard weight using the following model: 
+$$
+W=a(SVL)^b
+$$
+where W is lizard weight (g) and SVL is snout to vent length (mm). Unfortunately, this model is not yet complete, as a and b are parameters that need to be fitted! 
+
+```{r}
+# create a function based on model
+fxn <- function(a, b, svl){
+ weight <- a*(svl^b)
+return(weight)
+}
+```
+
+# 2. Initial Guess
+***
+
+Once we have a model starting point, we can start toward constructing our NLS with sufficient guesses. Because our model is incomplete and exponential, we'll first need to log transform it and complete a standard ordinary least squares (OLS) regression on the equation. This will provide close-enough approximations of the parameters to then perform our NLS.
+
+```{r}
+# OLS regression on log-transformed model
+my_guess_model <- lm(log(lizards$weight) ~ log(lizards$sv_length), data = lizards)
+
+# OLS regression coefficients
+coefficients(my_guess_model)
+
+# asign guesses for parameters a and b
+a <- exp((my_guess_model$coefficients[1]))
+b <- my_guess_model$coefficients[2]
+```
+
+# 3. Run NLS
+***
+
+Now that we have initial guesses for parameters a and b, we can run our NLS. 
+
+```{r}
+
+```
+
+
+
+
+
