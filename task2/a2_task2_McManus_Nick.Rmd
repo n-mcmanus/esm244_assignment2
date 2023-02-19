@@ -1,0 +1,11 @@
+---
+title: 'Task 2: Lizard NLS'
+author: "Nick McManus"
+date: "2023-02-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)     #always
+```
