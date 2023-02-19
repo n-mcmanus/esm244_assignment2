@@ -5,16 +5,16 @@ date: "2023-02-19"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=TRUE, message=F, warning=F}
+knitr::opts_chunk$set(echo = TRUE, message=F, warning=F)
 library(tidyverse)     #always
-library(purrr)
+library(purrr)   #?
 ```
 
 # Introduction
 ***
 
-In this task, we use non-linear least squares (NLS) to estimate parameters of snout length to weight model for lizard populations in New Mexico. Lizard data was collected using pitfall traps at the Jornada Basin long-term ecological research site between 1989-2006. 
+In this task, we use non-linear least squares (NLS) to estimate parameters of snout length to weight model for lizard populations in New Mexico. Then, an NLS model is fitted to a subset of the data containing only observations for male Western Whiptail lizards (*Cnemidophorus tigrisatus*). This species-specific NLS model is compared against the general model to determine the effect of datasets on NLS model fit. Lizard data used for this task was collected using pitfall traps at the Jornada Basin long-term ecological research site between 1989-2006. 
 
 **Source:** Lightfoot, D. and W.G. Whitford. 2020. Lizard pitfall trap data from 11 NPP study locations at the Jornada Basin LTER site, 1989-2006 ver 37. Environmental Data Initiative. https://doi.org/10.6073/pasta/4a6e258fb49c31e222ecbbcfd128967f
 
@@ -104,7 +104,44 @@ ggplot(data = lizards_pred) +
   guides(colour = guide_legend(override.aes = list(size = 3), title = "Sex:"))
 ```
 
+**Fig 1.** Snout to vent lengths (mm) and body weights (g) for male and female lizards observed at the Jornada Basin LTER. Female observations are indicated in coral, while male observations are indicated with blue points. The NLS predicted model of weight as a function of snout vent length is indicated by the black line. 
 
+<br>
+
+# NLS for *C. tigrisatus*
+***
+
+Now an NLS model will be fitted to a subset of lizard observations only of male *C. tigrisatus*. 
+```{r}
+### STEP1: create data subset ----------------------------
+lizards_cnti <- lizards %>% 
+  filter(spp == 'CNTI',
+         sex == 'M')
+
+### STEP2: Initial guess ---------------------------------
+# OLS regression on log-transformed model
+my_guess_model_cnti <- lm(log(lizards_cnti$weight) ~ log(lizards_cnti$sv_length), 
+                          data = lizards_cnti)
+
+# OLS regression coefficients
+coefficients(my_guess_model_cnti)
+
+# assign guesses for parameters a and b
+a_cnti <- exp((my_guess_model_cnti$coefficients[1]))
+b_cnti <- my_guess_model_cnti$coefficients[2]
+
+### STEP3: Run NLS --------------------------------------
+# run NLS
+lizards_cnti_nls <- nls(weight ~ fxn(a, b, sv_length),
+                        data = lizards_cnti,
+                        start = list(a = a_cnti, b = b_cnti),
+                        trace=TRUE)
+
+
+# predict weight based on model
+lizards_cnti_pred <- lizards_cnti %>%
+  mutate(predict = predict(lizards_cnti_nls, newdata=.))
+```
 
 
 
