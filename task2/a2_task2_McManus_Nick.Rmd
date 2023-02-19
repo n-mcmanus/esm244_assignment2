@@ -63,11 +63,48 @@ b <- my_guess_model$coefficients[2]
 # 3. Run NLS
 ***
 
-Now that we have initial guesses for parameters a and b, we can run our NLS. 
+Now that we have initial guesses for parameters a and b, we can run our NLS using the dataset and model. With the results, we can display how well the model fits the data.
 
 ```{r}
+# run NLS
+lizards_nls <- nls(weight ~ fxn(a, b, sv_length),
+                   data = lizards,
+                   start = list(a = a, b = b),
+                   trace=TRUE)
 
+
+# predict weight based on model
+lizards_pred <- lizards %>%
+  mutate(predict = predict(lizards_nls, newdata=.))
+
+
+# plot how well prediction matches
+ggplot(data = lizards_pred) +
+  #points for actual obs
+  geom_point(aes(x = sv_length, y = weight, color = sex),
+             size = 1.8,
+             alpha = 0.8) +
+  scale_color_manual(values = c("coral", "dodgerblue3")) +
+  scale_color_discrete(labels = c('Female', 'Male')) +
+  #line for predictions
+  geom_line(aes(x = sv_length , y = predict), 
+            color='black', 
+            size = 1) +
+  labs(x = 'Snout to vent length (mm)',
+       y = 'Weight (g)') +
+  theme_classic() +
+  theme(
+    #legend
+    legend.position = c(0.15, 0.8),
+    legend.title = element_text(size = 9, face = 'bold'),
+    legend.text = element_text(size = 9),
+    #axes
+    axis.title.x = element_text(size = 9, face = 'bold'),
+    axis.title.y = element_text(size = 9, face = 'bold')) +
+  guides(colour = guide_legend(override.aes = list(size = 3), title = "Sex:"))
 ```
+
+
 
 
 
