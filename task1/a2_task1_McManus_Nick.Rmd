@@ -36,11 +36,12 @@ To understand how well measured variables -- such as plant height, canopy length
 
 <br><br>
 
-# Visual exporation
+# Visual exploration
 ***
 
-First we'll read in the data:
 ```{r}
+## read in the data
+
 palmetto <- read_csv("palmetto.csv") %>% 
   # keep variables of interest
   select(species, height:green_lvs) %>% 
@@ -55,8 +56,10 @@ palmetto <- read_csv("palmetto.csv") %>%
 #ggpairs(data = palmetto, aes(color = species))
 ```
 
-Then we'll visualize differences in height, canopy length, and the number of green leaves between palmetto species.
-```{r,fig.height= 4, fig.width= 3.5}
+
+```{r}
+### visualize differences in height and canopy length
+
 ## create overlapping plot
 height_length_overlap <- ggplot(data = palmetto, aes(x = height, y = length)) +
   geom_point(aes(color = species)) +
@@ -66,7 +69,7 @@ height_length_overlap <- ggplot(data = palmetto, aes(x = height, y = length)) +
   theme_bw() +
   theme(
     #customize legend elements
-    legend.position = c(0.15, 0.85),
+    legend.position = c(0.12, 0.8),
     legend.title = element_text(face = 'bold', size = 9),
     legend.text = element_text(face = 'italic', size = 9),
     legend.background = element_rect(fill = 'honeydew'),
@@ -97,8 +100,9 @@ height_length_sep <- ggplot(data = palmetto, aes(x = height, y = length)) +
     axis.title.x = element_text(size = 9, face = 'bold'),
     axis.title.y = element_text(size = 9, face = 'bold'),
     panel.background = element_rect(fill = 'azure'))
+```
 
-
+```{r, fig.height = 9, fig.width = 8}
 ## plot both graphs together
 plot_grid(height_length_overlap, height_length_sep,
           align = 'V',
@@ -106,15 +110,20 @@ plot_grid(height_length_overlap, height_length_sep,
           labels = c('A', 'B'),
           hjust = -1,
           vjust = 1.8)
-
 ```
 
-**Figure 1.** Height (cm) and canopy length (cm) of Palmetto species measured at the Archbold Biological Station from 1981-2017. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. Figure 1A directly compares observations for both species, while 1B separates observations to better visualize the spread of each species. 
+**Fig 1.** Height (cm) and canopy length (cm) of Palmetto species measured at the Archbold Biological Station from 1981-2017. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. Fig 1A (top) directly compares observations for both species, while 1B (bottom) separates observations to better visualize the spread of each species. 
 
-
-
+<br><br>
 
 ```{r}
+#quantify the difference
+leaf_stats <- palmetto %>% 
+  group_by(species) %>% 
+  summarize(mean_lvs = mean(green_lvs),
+            sd_lvs = sd(green_lvs))
+
+
 # histogram of green leaves by species
 ggplot(data = palmetto, aes(x = green_lvs)) +
   #boxes for s.etonia
@@ -151,25 +160,20 @@ ggplot(data = palmetto, aes(x = green_lvs)) +
     legend.title = element_text(face = 'bold', size = 10),
     legend.text = element_text(face = 'italic'),
     legend.key.size = unit(1, 'line'))
-
-#quantify the difference
-leaf_stats <- palmetto %>% 
-  group_by(species) %>% 
-  summarize(mean_lvs = mean(green_lvs),
-            sd_lvs = sd(green_lvs))
 ```
-**Figure 2.** The number of green leaves on a palmetto for two species measured at the Archbold Biological Station. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. On average, *S. etonia* have `r round(leaf_stats$mean_lvs[1],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[1],1)` green leaves while *S. repens* have `r round(leaf_stats$mean_lvs[2],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[2],1)` green leaves (mean <font size="1">$\pm$</font> 1 standard deviation). The histograms' difference in spread and central location reflect *S. repens* greater variability and average number of green leaves per plant.  
+
+**Fig 2.** The number of green leaves on a palmetto for two species measured at the Archbold Biological Station. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. On average, *S. etonia* have `r round(leaf_stats$mean_lvs[1],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[1],1)` green leaves while *S. repens* have `r round(leaf_stats$mean_lvs[2],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[2],1)` green leaves (mean <font size="1">$\pm$</font> 1 standard deviation). The histograms' difference in spread and central location reflect *S. repens* greater variability and average number of green leaves per plant.  
+
+<br>
 
 Based on Figures 1 and 2, the number of green leaves noticeably differs between species, while height and canopy length narrowly differ; as such, height and canopy length may not serve as useful predictor variables in determining palmetto species. Figure 1 does show that canopy length is slightly greater for *S. etonia* plants with the same height as *S. repens*; however, to determine how much length helps classify species, we'll create and compare two models and perform a binary logistic regression. 
 
+<br>
 
 # Binary Logistic Regression
 ***
 
-<br>
-
 ## Compare Models
-
 Our first model will classify palmetto species by plant height, canopy length and width, and the number of green leaves. Our second model will eschew canopy length, and we'll evaluate if the increased simplicity results in a better model. This begins with evaluating the log odds of plant type based on the predictor variables in each model. 
 ```{r}
 # first formula considers all variables
@@ -186,13 +190,13 @@ blr2_tidy <- tidy(blr2)
 
 # return tables with log odds
 blr1_tidy %>% 
-  kable(caption = "**Table 1.** Summary statistics for BLR model 1",
+  kable(caption = "**Table 1.** BLR results for Model 1.",
         col.names = c("Variable", "Coefficient", "Standard error", "Statistic", "p-value")) %>% 
   kable_styling(full_width = FALSE,
                 bootstrap_options = "hover",
                 position = "left")
 blr2_tidy %>% 
-  kable(caption = "**Table 2.** Summary statistics for BLR model s",
+  kable(caption = "**Table 2.** BLR results for Model 2.",
         col.names = c("Variable", "Coefficient", "Standard error", "Statistic", "p-value")) %>% 
   kable_styling(full_width = FALSE,
                 bootstrap_options = "hover",
@@ -236,9 +240,9 @@ aic_table
 bic_table
 ```
 
-`r aic$AICc[1]`
-
 As shown in Table 3, Model 1 has an AICc value of `r round(aic$AICc[1],2)`, while Model 2 has an AICc of `r round(aic$AICc[2],2)`. This difference of `r round(aic$Delta_AICc[2],2)` indicates that Model 1 predicts palmetto species significantly better than Model 2. The BIC values for the two models differ by `r round(bic$Delta_BIC[2],2)`, further supporting that Model 1 is the better choice.  
+
+<br>
 
 Using the {tidymodels} package, we'll run a repeated cross validation (10-fold repeated 10 times) for both models: 
 ```{r}
@@ -283,7 +287,7 @@ cv_metrics_f2 <- collect_metrics(blr_tidy_cv_f2)
 ### create tables for cv metrics ---------------------------------------
 ## model 1
 cv_metrics_f1 %>% 
-  kable(caption = '**Table 5.** Cross validation metrics for Model 1',
+  kable(caption = '**Table 5.** Cross validation metrics for Model 1.',
         col.names = c('Metric', 'Estimator', 'Mean',
                       'n', 'Standard error', 'Configuration')) %>% 
   kable_styling(full_width = FALSE,
@@ -291,7 +295,7 @@ cv_metrics_f1 %>%
                 position = "left")
 ## model 2
 cv_metrics_f2 %>% 
-  kable(caption = '**Table 6.** Cross validation metrics for Model 2',
+  kable(caption = '**Table 6.** Cross validation metrics for Model 2.',
         col.names = c('Metric', 'Estimator', 'Mean',
                       'n', 'Standard error', 'Configuration')) %>% 
   kable_styling(full_width = FALSE,
@@ -302,8 +306,10 @@ cv_metrics_f2 %>%
 
 As displayed in Tables 5 and 6, the mean accuracy of Model 1 is `r round(cv_metrics_f1$mean[1],4)`, while the mean accuracy for Model 2 is `r round(cv_metrics_f2$mean[1],4)`. Based on these cross validation results, as well as the AICc and BIC values, Model 1 performs better at species classification. 
 
+<br>
 
 # Model Correctness
+***
 
 Now that we've selected Model 1, we'll train it with the entire palmetto dataset and return it's coefficients.
 ```{r}
@@ -314,7 +320,7 @@ blr1_tidyfit <- blr_model %>%
 # output coefficients in nice table
 coeffs_blr1_tidy <- tidy(blr1_tidyfit)
 coeffs_blr1_tidy %>% 
-  kable(caption = "**Table 7.** Summary statistics for BLR model 1",
+  kable(caption = "**Table 7.** BLR coefficients for final model.",
         col.names = c("Variable", "Coefficient", "Standard error", "Statistic", "p-value")) %>% 
   kable_styling(full_width = FALSE,
                 bootstrap_options = "hover",
@@ -349,7 +355,7 @@ blr1_accuracy <- blr1_fitted %>%
   
 # output nice table
 blr1_accuracy %>% 
-  kable(caption = "**Table 8.** Classification accuracy for Model 1.",
+  kable(caption = "**Table 8.** Classification accuracy for final model.",
         col.names = c("Species", 
                       "Correctly classified (n)", 
                       "Incorrectly classified (n)", 
@@ -360,5 +366,5 @@ blr1_accuracy %>%
   
 ```
 
-By using plant height, canopy length and width, and number of green leaves as predictor variables, Model 1 served as a better predictor of palmetto species than Model 1. This decision was supported by the AICc values, BIC values, and results from a cross validation for both models. Table 8 illustrates that Model 1 correctly classifies palmettos as either *S. repens* or *S. etonia* `r round((blr1_accuracy[1,4] + blr1_accuracy[2,4])/2, 2)`% of the time, on average. 
+By using plant height, canopy length and width, and number of green leaves as predictor variables, Model 1 served as a better predictor of palmetto species than Model 2. This decision was supported by the AICc values, BIC values, and results from a cross validation for both models. Table 8 illustrates that Model 1 correctly classifies palmettos as either *S. repens* or *S. etonia* `r round((blr1_accuracy[1,4] + blr1_accuracy[2,4])/2, 2)`% of the time, on average. 
 
