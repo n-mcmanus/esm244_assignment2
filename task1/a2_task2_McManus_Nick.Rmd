@@ -19,17 +19,17 @@ library(GGally)     #plotting
 library(AICcmodavg) #compare AIC values
 library(tidymodels) #k-fold cross validation
 library(kableExtra) #tables
+library(cowplot)    #figures
 ```
 
 ## Introduction
 ***
 
-This analysis focuses on a dataset of south-central Florida palmetto species. This dataset includes (x, y, z) on the two dominant palmetto species at the Archbold Biological Station: *Serenoa repens* and *Sabel etonia*. Data was collected at five-year intervals between 1981-2017.
+In this task, we create and compare two different binary logistic regression models for predicting palmetto species in south-central Florida. These models are created and tested using a long-term dataset of the two dominant palmetto species at the Archbold Biological Station: *Serenoa repens* and *Sabel etonia*. These data were collected at five-year intervals between 1981-2017.
 
-To understand how well measured variables -- such as plant height, canopy length and width, and number of new green leaves -- can classify palmetto species, we'll first visualize the relationship between species and predictor variables. Then, a binary logistic regression determines the probabilty of a given palmetto to be either species....
+![img/s_repens.jpeg]
 
-
-
+To understand how well measured variables -- such as plant height, canopy length and width, and number of new green leaves -- can classify palmetto species, we'll first visualize the relationship between species and predictor variables. Then, metrics such as AICc, BIC, and cross validation are used to determine which of two models best predicts the palmetto species. 
 
 **Source:** Abrahamson, W.G. 2019. Survival, growth and biomass estimates of two dominant palmetto species of south-central Florida from 1981 - 2017, ongoing at 5-year intervals ver 1. Environmental Data Initiative. https://doi.org/10.6073/pasta/f2f96ec76fbbd4b9db431c79a770c4d5
 
@@ -47,37 +47,116 @@ palmetto <- read_csv("palmetto.csv") %>%
   mutate(species = case_when(species == 1 ~ 'S. repens',
                              species == 2 ~ 'S. etonia'),
          species = factor(species)) %>% 
+  # drop any NAs
   drop_na()
 
+# Quickly visualize variable relationships
 #ggpairs(data = palmetto, aes(color = species))
 ```
 
-Then create visualizations.
-```{r}
-ggplot(data = palmetto, aes(x = height, y = length))+
-  geom_point(aes(color = species), show.legend = FALSE) +
+Then we'll visualize differences in height, canopy length, and the number of green leaves between palmetto species.
+```{r,fig.height= 4, fig.width= 3.5}
+## create overlapping plot
+height_length_overlap <- ggplot(data = palmetto, aes(x = height, y = length)) +
+  geom_point(aes(color = species)) +
   labs(x = 'Height (cm)',
-       y = 'Canopy Length (cm)') +
- # facet_wrap(~species) +
+       y = 'Canopy length (cm)') +
   scale_color_manual(values = c('seagreen4', 'seagreen2'))+
-  theme()
+  theme_bw() +
+  theme(
+    #customize legend elements
+    legend.position = c(0.15, 0.85),
+    legend.title = element_text(face = 'bold', size = 9),
+    legend.text = element_text(face = 'italic', size = 9),
+    legend.background = element_rect(fill = 'honeydew'),
+    legend.key = element_rect(fill = 'honeydew'),
+    legend.key.size = unit(1, 'line'),
+    legend.box.background = element_rect(color = 'black'),
+    #customize axis elements
+    axis.text.x = element_text(size = 7),
+    axis.text.y = element_text(size = 7),
+    axis.title.x = element_text(size = 9, face = 'bold'),
+    axis.title.y = element_text(size = 9, face = 'bold'),
+    panel.background = element_rect(fill = 'azure')) +
+  #change legend dot size and title
+  guides(colour = guide_legend(override.aes = list(size = 3), title = "Species:"))
 
-## maybe make a top figure of them together, then bottom half of them split up and put it together in a cowplot? 
+
+## create facet wrapped plot
+height_length_sep <- ggplot(data = palmetto, aes(x = height, y = length)) +
+  geom_point(aes(color = species), alpha = 0.8, show.legend = FALSE) +
+  labs(x = 'Height (cm)',
+       y = 'Canopy length (cm)') +
+  facet_wrap(~species) +
+  scale_color_manual(values = c('seagreen4', 'seagreen2'))+
+  theme_bw()+
+  theme(
+    axis.text.x = element_text(size = 7),
+    axis.text.y = element_text(size = 7),
+    axis.title.x = element_text(size = 9, face = 'bold'),
+    axis.title.y = element_text(size = 9, face = 'bold'),
+    panel.background = element_rect(fill = 'azure'))
+
+
+## plot both graphs together
+plot_grid(height_length_overlap, height_length_sep,
+          align = 'V',
+          ncol = 1,
+          labels = c('A', 'B'),
+          hjust = -1,
+          vjust = 1.8)
+
 ```
-**Figure 1.** Height (cm) and canopy length (cm) of Palmetto species measured at the Archbold Biological Station from 1981-2017. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. 
+
+**Figure 1.** Height (cm) and canopy length (cm) of Palmetto species measured at the Archbold Biological Station from 1981-2017. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. Figure 1A directly compares observations for both species, while 1B separates observations to better visualize the spread of each species. 
 
 
 
 
 ```{r}
 # histogram of green leaves by species
-ggplot(data = palmetto, aes(x = green_lvs, fill = species)) +
-  geom_histogram() +
-  labs(x = 'Number of Green Leaves',
+ggplot(data = palmetto, aes(x = green_lvs)) +
+  #boxes for s.etonia
+  geom_histogram(data = subset(palmetto, species == 'S. etonia'), 
+                 aes(fill = species),
+                 binwidth = 1, 
+                 boundary = -0.5, #adjust axis for better labeling
+                 color = 'black', 
+                 alpha = 0.8) +
+  #boxes for s.repens
+  geom_histogram(data = subset(palmetto, species == 'S. repens'), 
+                 aes(fill = species),
+                 binwidth = 1, boundary = -0.5,
+                 color = 'gray20',
+                 alpha = 0.6) +
+  #set colors and legend values
+  scale_fill_manual(name = 'Species', 
+                    values = c('seagreen4', 'seagreen2'),
+                    labels = c('S. etonia', 'S. repens')) +
+  #force origin to (0,0) and x-axis labels through 17
+  scale_x_continuous(expand = c(0, 0), limits = c(0, 18), breaks=1:17) + 
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 2100)) +
+  #axis labels
+  labs(x = 'Number of green leaves',
        y = 'Count') +
-  scale_fill_manual(values = c('seagreen4', 'seagreen2'))
-```
+  #set theme
+  theme_classic() +
+  theme(
+    axis.title.x = element_text(face = 'bold', vjust = -0.5),
+    axis.title.y = element_text(face = 'bold'),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_text(vjust = 2),
+    legend.position = c(0.8, 0.8),
+    legend.title = element_text(face = 'bold', size = 10),
+    legend.text = element_text(face = 'italic'),
+    legend.key.size = unit(1, 'line'))
 
+leaf_stats <- palmetto %>% 
+  group_by(species) %>% 
+  summarize(mean_lvs = mean(green_lvs),
+            sd_lvs = sd(green_lvs))
+```
+**Figure 2.** The number of green leaves on a palmetto for two species measured at the Archbold Biological Station. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. On average, *S. etonia* have `r round(leaf_stats$mean_lvs[1],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[1],1)` green leaves while *S. repens* have `r round(leaf_stats$mean_lvs[2],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[2],1)` green leaves (mean <font size="1">$\pm$</font> 1 standard deviation). The histograms' difference in spread and location reflect *S. repens* greater variability and average number of green leaves per plant.  
 
 
 
