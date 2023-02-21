@@ -7,7 +7,7 @@ output:
     toc: yes
     toc_float: yes
     theme: cerulean
-    code_folding: show
+    code_folding: hide
     smooth_scroll: yes
     collapsed: yes
 ---
@@ -27,8 +27,6 @@ library(cowplot)    #figures
 ***
 
 In this task, we create and compare two different binary logistic regression models for predicting palmetto species in south-central Florida. These models are created and tested using a long-term dataset of the two dominant palmetto species at the Archbold Biological Station: *Serenoa repens* and *Sabel etonia*. These data were collected at five-year intervals between 1981-2017.
-
-![img/s_repens.jpeg]
 
 To understand how well measured variables -- such as plant height, canopy length and width, and number of new green leaves -- can classify palmetto species, we'll first visualize the relationship between species and predictor variables. Then, metrics such as AICc, BIC, and cross validation are used to determine which of two models best predicts the palmetto species. 
 
@@ -77,10 +75,10 @@ height_length_overlap <- ggplot(data = palmetto, aes(x = height, y = length)) +
     legend.key.size = unit(1, 'line'),
     legend.box.background = element_rect(color = 'black'),
     #customize axis elements
-    axis.text.x = element_text(size = 7),
-    axis.text.y = element_text(size = 7),
-    axis.title.x = element_text(size = 9, face = 'bold'),
-    axis.title.y = element_text(size = 9, face = 'bold'),
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title.x = element_text(size = 10, face = 'bold'),
+    axis.title.y = element_text(size = 10, face = 'bold'),
     panel.background = element_rect(fill = 'azure')) +
   #change legend dot size and title
   guides(colour = guide_legend(override.aes = list(size = 3), title = "Species:"))
@@ -95,14 +93,14 @@ height_length_sep <- ggplot(data = palmetto, aes(x = height, y = length)) +
   scale_color_manual(values = c('seagreen4', 'seagreen2'))+
   theme_bw()+
   theme(
-    axis.text.x = element_text(size = 7),
-    axis.text.y = element_text(size = 7),
-    axis.title.x = element_text(size = 9, face = 'bold'),
-    axis.title.y = element_text(size = 9, face = 'bold'),
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.title.x = element_text(size = 10, face = 'bold'),
+    axis.title.y = element_text(size = 10, face = 'bold'),
     panel.background = element_rect(fill = 'azure'))
 ```
 
-```{r, fig.height = 9, fig.width = 8}
+```{r, fig.height = 8, fig.width = 7}
 ## plot both graphs together
 plot_grid(height_length_overlap, height_length_sep,
           align = 'V',
@@ -162,7 +160,7 @@ ggplot(data = palmetto, aes(x = green_lvs)) +
     legend.key.size = unit(1, 'line'))
 ```
 
-**Fig 2.** The number of green leaves on a palmetto for two species measured at the Archbold Biological Station. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. On average, *S. etonia* have `r round(leaf_stats$mean_lvs[1],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[1],1)` green leaves while *S. repens* have `r round(leaf_stats$mean_lvs[2],1)` <font size="1">$\pm$</font> `r round(leaf_stats$sd_lvs[2],1)` green leaves (mean <font size="1">$\pm$</font> 1 standard deviation). The histograms' difference in spread and central location reflect *S. repens* greater variability and average number of green leaves per plant.  
+**Fig 2.** The number of green leaves on a palmetto for two species measured at the Archbold Biological Station. Observations for *S. etonia* and *S. repens* are displayed in dark and light green, respectively. On average, *S. etonia* have `r round(leaf_stats$mean_lvs[1],1)`<font size="1">$\pm$</font>`r round(leaf_stats$sd_lvs[1],1)` green leaves while *S. repens* have `r round(leaf_stats$mean_lvs[2],1)`<font size="1">$\pm$</font>`r round(leaf_stats$sd_lvs[2],1)` green leaves (mean <font size="1">$\pm$</font> 1 standard deviation). The histograms' difference in spread and central location reflect *S. repens* greater variability and average number of green leaves per plant.  
 
 <br>
 
@@ -351,7 +349,7 @@ blr1_accuracy <- blr1_fitted %>%
   group_by(species) %>% 
   summarize(n_correct = sum(correct_pred == 'yes'),
             n_incorrect = sum(correct_pred == 'no'),
-            pct_correct = pred_acc(species, species_pred))
+            pct_correct = round(pred_acc(species, species_pred),3))
   
 # output nice table
 blr1_accuracy %>% 
